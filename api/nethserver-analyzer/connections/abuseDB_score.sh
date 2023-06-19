@@ -1,6 +1,6 @@
 #!/bin/bash
 
-API_KEY="	8c7058ef268f956f632fcdec29d45f567a28b48966e1abfa96ed5d0d5172eb0dee41f69a31769cf3"
+API_KEY="Inserisci API Key"
 
 get_ip_score() {
     local ip=$1
