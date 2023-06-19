@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<head>
+    <title>Download List user configuration VPN </title>
+    <meta charset="utf-8">
+    <link href="../base1/cockpit.css" type="text/css" rel="stylesheet">
+    <script src="../base1/jquery.js"></script>
+    <script src="../base1/cockpit.js"></script>
+    <script src="vue.js"></script>
+ </head>
+ <body>
+    <div class="container-fluid" id="demo-app">
+       <div class="toast-pf toast-pf-max-width toast-pf-top-right alert alert-success alert-dismissable" v-if="showLoadConnecions">
+          <button type="button" class="close" data-dismiss="alert" aria-hidden="true">
+          <span class="pficon pficon-close"></span>
+          </button>
+          <span class="pficon pficon-ok"></span>
+          Analyzer Network
+       </div>
+       <div class="alert alert-warning alert-dismissable mg-top-10" v-if="showError">
+          <span class="pficon pficon-warning-triangle-o"></span>
+          <strong>Avviso:</strong>
+          <span class="mg-left-5">
+          {{msgError}}, si rinvita a ricararicare la paggina. <br>
+          Se il problema persiste contattare l'amministratore.
+          </span>.
+       </div>
+       <h2>Analyzer Network</h2>
+       <div class="">
+          <!----><span>
+          Maggiori informazioni
+          <a target="_blank" href="https://partner.nethesis.it">Eroi Digitali</a>.
+          </span>
+       </div>
+       <hr>
+       <div class="form-horizontal">
+          <div class="form-group compact" >
+             <div class="col-sm-2 adjust-li">
+                <label for="statusFilter">Filtro Stato:</label>
+                <select id="statusFilter" v-model="selectedStatus">
+                    <option value="">Tutti</option>
+                    <option value="ESTABLISHED">ESTABLISHED</option>
+                    <option value="TIME_WAIT">TIME_WAIT</option>
+                    <option value="CLOSE">CLOSE</option>
+                </select>
+             </div>
+          </div>
+          <div class="vgt-global-search__input vgt-pull-left">
+                <label for="filter-input">Filtro IP:</label>
+                <input type="text" class="form-control" id="filter-input" v-model="filterText">
+             </div>  
+          </div>
+          <div class="vgt-responsive">
+            <table class="table vgt2 ">
+              <thead>
+                <tr>
+                  <!----> <!---->
+                  <th class="vgt-left-align" style="min-width: auto; width: auto;">
+                    <span>Sorgente</span>
+                  </th>
+                  <th class="vgt-left-align" style="min-width: auto; width: auto;">
+                    <span>Destinazione</span>
+                  </th>
+                  <th class="vgt-left-align" style="min-width: auto; width: auto;">
+                    <span>Stato</span>
+                  </th>
+                  <th class="vgt-left-align" style="min-width: auto; width: auto;">
+                    <span>Protocollo</span>
+                  </th>
+                  <th class="vgt-left-align" style="min-width: auto; width: auto;">
+                    <span>Applicazione</span>
+                  </th>
+                  <th class="vgt-left-align" style="min-width: auto; width: auto;">
+                    <span>Punteggio Adb</span>
+                  </th>
+                  <th class="vgt-left-align" style="min-width: auto; width: auto;">
+                    <span>Punteggio xxx</span>
+                  </th>
+                  <th class="vgt-left-align" style="min-width: auto; width: auto;">
+                    <span></span>
+                  </th>
+                </tr>
+                <!---->
+              </thead>
+              <tbody>
+                <!---->
+                        <tr v-for="(elm, index) in filteredConnections" :key="index">
+                            <!----> <!---->
+                            <td class="vgt-left-align">
+                              <span><span class="semi-bold"> {{ elm.src }}</span><span>: {{ elm.sport }}</span></span>
+                              <!----><!----><!----><!----><!----><!----><!----><!----><!----><!---->
+                            </td>
+                            <td class="vgt-left-align">
+                              <!----><span><span class="semi-bold"> {{ elm.dst }}</span><span>: {{ elm.dport }}</span></span>
+                              <!----><!----><!----><!----><!----><!----><!----><!----><!---->
+                            </td>
+                            <td class="vgt-left-align">
+                              <!----><!---->
+                              <span>
+                                {{ elm.state }}
+                              </span>
+                              <!----><!----><!----><!----><!----><!----><!----><!---->
+                            </td>
+                            <td class="vgt-left-align">
+                              <!----><!----><!----><!----><!----><!---->
+                              <span>
+                                {{ elm.protocol }}
+                              </span>
+                              <!----><!----><!----><!---->
+                            </td>
+                            <td class="vgt-left-align">
+                              <!----><!----><!----><!----><!----><!----><!---->
+                              <span>
+                                  {{ elm.application }}
+                              </span>
+                              <!----><!----><!---->
+                            </td>
+                            <td class="vgt-left-align">
+                              <!----><!----><!----><!----><!----><!----><!----><!---->
+                              <span>
+                                count adb
+                              </span>
+                              <!----><!---->
+                            </td>
+                            <td class="vgt-left-align">
+                              <!----><!----><!----><!----><!----><!----><!----><!----><!---->
+                              <span>
+                                count xx
+                              </span>
+                              <!---->
+                            </td>
+                            <td class="vgt-left-align">
+                              <!----><!----><!----><!----><!----><!----><!----><!----><!----><!---->
+                              <span>
+                                <button class="btn btn-danger"><span class="fa fa-times span-right-margin"></span>
+                                  Elimina
+                                </button></span>
+                            </td>
+                          </tr>
+                    </div>
+                    <!-- end div for -->
+
+
+                <!---->
+              </tbody> 
+              <!---->
+          </table>
+    </div>
+
+       </div>
+    </div>
+    <script>
+       var app = new Vue({
+           el: '#demo-app',
+           data: {
+               lstConnections : [], 
+               showError : false,
+               showLoadConnecions : false,
+               selectedStatus: '',
+               filterText: '',
+               groupConnections: false,
+               groupedConnections: [],
+               msgError : '',
+           },
+           mounted() {
+            this.getConnecions();        
+           },
+           computed: { 
+           filteredConnections() {
+                if (this.selectedStatus === '' && this.filterText === '') {
+                    return this.lstConnections;
+                } else {
+                 let connections = this.lstConnections;
+                  if (this.groupConnections) {
+                  
+                  }else{
+
+                    return this.lstConnections.filter(connection =>
+                        (this.selectedStatus === '' || connection.state === this.selectedStatus) &&
+                        (this.filterText === '' ||
+                            connection.src.includes(this.filterText) ||
+                            connection.dst.includes(this.filterText))
+                    );
+                  }
+
+                }
+            }
+	   },    
+           methods : {
+       
+            getConnecions : function () {
+                   console.log("start");
+                   var self = this;
+                   self.lstConnections = [];
+                   //echo '{"action":"conntrack","protocol":"tcp","state":"","limit":""}' | /usr/bin/sudo /usr/libexec/nethserver/api/nethserver-analyzer/connections/read | jq
+                   cockpit.spawn('/usr/libexec/nethserver/api/nethserver-analyzer/connections/read')
+                       .input('{"action":"conntrack","protocol":"tcp","state":"","limit":""}')
+                       .done(function(content) {
+       
+                           console.log("success");
+                           //console.log(content);
+                           var success = JSON.parse(content);
+                           //console.log(success.connections);
+
+                           for (i in success.connections) {
+                              //console.log(success.connections[i]);
+                              //alert(success.users[i].name);
+                              //self.lstConnections.push(success.connections[i]);
+			       var data = {
+                                "src" : success.connections[i].src,
+                                "sport" : success.connections[i].sport,
+                                "dst" : success.connections[i].dst,
+                                "dport" : success.connections[i].dport,
+				"state" : success.connections[i].state,
+				"protocol" : success.connections[i].protocol,
+				"application" : success.connections[i].ndpi
+                              }
+			      console.log(data);
+                              self.lstConnections.push(data);
+                          }
+                                      
+                          //apertura pop-up messaggio di sucesso
+                          self.showLoadConnecions = true;
+                          //timer per la chiusura del pop-up
+                          setTimeout (function () {
+                             self.showLoadConnecions = false;
+                          },5000);
+
+                                
+                       })
+                       .fail(function(ex) {
+                           console.log("error fail");
+                           self.showError = true;
+                           self.msgError = ex;
+                           console.log(ex);
+                       });
+       
+               },//end
+               
+           }
+       });
+       
+    </script>
+ </body>
+ </html>

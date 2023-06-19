@@ -1,0 +1,241 @@
+#!/usr/bin/perl
+
+#
+# Copyright (C) 2019 Nethesis S.r.l.
+# http://www.nethesis.it - nethserver@nethesis.it
+#
+# This script is part of NethServer.
+#
+# NethServer is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License,
+# or any later version.
+#
+# NethServer is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with NethServer.  If not, see COPYING.
+#
+
+use strict;
+use warnings;
+use JSON;
+
+require '/usr/libexec/nethserver/api/lib/helper_functions.pl';
+require '/usr/libexec/nethserver/api/nethserver-firewall-base/lib/firewall_functions.pl';
+
+
+sub list_connections
+{
+    # suppress warning if reply_<var> is not initialized
+    no warnings 'uninitialized';
+
+    my $proto = shift || '';
+    my $state = shift || '';
+    my $limit = shift || -1;
+
+    my $sort_key = 'timeout';
+
+    # init providers lookup table
+    my $fw = new NethServer::Firewall();
+    my %providers;
+    foreach my $p ($fw->getProviders()) {
+        my $label = $fw->{'ndb'}->get_prop($p->{'interface'}, 'nslabel') || $p->{'name'};
+        $providers{$p->{'number'}} = $label;
+    }
+
+    # init priority classes lookup table
+    my %classes;
+    my $tcdb = esmith::ConfigDB->open_ro('tc');
+    foreach ($tcdb->get_all_by_prop('type' => 'class')) {
+        $classes{$_->prop('Mark')} = $_->key;
+    }
+    $classes{'0'} = 'default';
+
+    # init ndpi lookup table
+    my %ndpi;
+    if (-f '/proc/net/xt_ndpi/proto') {
+        open my $fh, '<', "/proc/net/xt_ndpi/proto";
+        if ($fh) {
+            while (my $row = <$fh>) {
+                next if ($row =~ /^#/);
+                chomp $row;
+                my ($id, $mark, $name, $other) = split(/\s+/, $row, 4);
+                $ndpi{$id} = $name;
+            }
+        }
+    }
+
+    # parse all connections
+    my @connections;
+    open(FH, "/proc/net/nf_conntrack");
+    while (<FH>) {
+        chomp;
+        my $skip = 0;
+        my %fields;
+        my @parts = split(/\s+/, $_);
+
+        # set common fields
+        $fields{'layer'} = $parts[0];
+        $fields{'protocol'} = $parts[2];
+        $fields{'timeout'} = $parts[4];
+        next if ($proto ne '' && $fields{'protocol'} ne $proto);
+
+
+        if ($proto eq 'tcp') {
+            $fields{'state'} = $parts[5];
+            $skip = 6;
+        } else {
+            $fields{'state'} = '';
+            $skip = 5;
+        }
+
+        next if ($state ne '' && $state ne $fields{'state'});
+
+        # set extra fields
+        foreach my $part (@parts[ $skip .. $#parts ]) {
+            if (index($part,'=') > 0) {
+                my ($k, $v) = split("=",$part);
+                if (!defined($fields{$k})) {
+                    $fields{$k} = $v;
+                } else {
+                    $fields{$k."_reply"} = $v;
+                }
+            } else {
+                # map status field
+                $part =~ /\[(.*)\]/;
+                $fields{'status'} = $1;
+            }
+        }
+
+        # enable orderding by bytes if accounting is enabled
+        if (defined($fields{'bytes'})) {
+            $sort_key = 'bytes_total';
+        }
+
+        $fields{'bytes_total'} = int($fields{'bytes'}) + int($fields{'bytes_reply'});
+        $fields{'packets_total'} = int($fields{'packets'}) + int($fields{'packets_reply'});
+
+        # calculate nat flag
+        if ($fields{'src'} ne $fields{'dst_reply'} || $fields{'dst'} ne $fields{'src_reply'}) {
+            $fields{'nat'} = 1;
+        } else {
+            $fields{'nat'} = 0;
+        }
+        my $mark = $fields{'mark'};
+        # convert mark to hex
+        $fields{'mark'} = sprintf("0x%x", $mark);
+        # split mark
+        $fields{'provider'} = ($mark >> 16) ? $providers{$mark >> 16} : '';
+        my $ndpi_id = sprintf("%0.2x", ($mark & 0xff00) >> 8);
+        $fields{'ndpi'} = $ndpi{$ndpi_id} || '';
+        $fields{'prio'} = $classes{$mark & 0xff};
+
+	my $ipPublic = '';
+
+        if (is_private_ip($fields{'src'}) == 0 ) {
+	  $ipPublic = $fields{'src'};
+        }elsif (is_private_ip($fields{'dst'}) == 0 ) {
+	  $ipPublic = $fields{'dst'};
+	}
+
+        $fields{'ipPublic'}= $ipPublic || 'Error';
+
+
+
+        if (is_private_ip($fields{'src'}) == 0 || is_private_ip($fields{'dst'}) == 0 ) {
+            # Esegui l'operazione desiderata per gli indirizzi IP pubblici
+#            $fields{'scoreDB1'} = $fields{'src'} || 'Error';
+#            $fields{'scoreDB2'} = is_private_ip($fields{'src'}) || 'Error';
+            push(@connections, \%fields);
+        }
+     
+    }
+    close(FH);
+
+    my @sorted = sort{$b->{$sort_key} <=> $a->{$sort_key}} @connections;
+
+    if ($limit > 0) {
+        @sorted = splice(@sorted, 0, $limit);
+    }
+    return \@sorted;
+}
+
+sub is_private_ip {
+    my ($ip) = @_;
+    my @octets = split(/\./, $ip);
+
+    # Controllo per indirizzi IP privati di Classe A
+    if ($octets[0] eq '10') {
+        return 1;
+    }
+
+    # Controllo per indirizzi IP privati di Classe B
+    if ($octets[0] eq '172' && $octets[1] >= 16 && $octets[1] <= 31) {
+        return 1;
+    }
+
+    # Controllo per indirizzi IP privati di Classe C
+    if ($octets[0] eq '192' && $octets[1] eq '168') {
+        return 1;
+    }
+
+    # Controllo per indirizzi loopback
+    if ($ip eq '127.0.0.1') {
+        return 1;
+    }
+
+    # Controllo per indirizzi link-local
+    if ($octets[0] eq '169' && $octets[1] eq '254') {
+        return 1;
+    }
+
+    return 0;  # IP pubblico
+}
+
+
+my $input = readInput();
+my $cmd = $input->{'action'};
+
+if ($cmd eq 'conntrack') {
+
+    my $connections = list_connections($input->{'protocol'}, $input->{'state'}, $input->{'limit'});
+ 
+    # Filtra gli indirizzi IP privati
+    @$connections = grep { is_private_ip($_->{'src'}) == 0 || is_private_ip($_->{'dst'}) == 0 } @$connections;
+
+
+    print encode_json({"connections" => $connections});
+   
+
+} elsif ($cmd eq 'protocols') {
+
+    print encode_json({ "protocols" => {
+                'tcp' => ['', 'CLOSE', 'CLOSE_WAIT', 'ESTABLISHED', 'FIN_WAIT', 'LAST_ACK', 'LISTEN', 'NONE', 'SYN_SENT', 'SYN_RECV', 'TIME_WAIT'],
+                'udp' => [],
+                'icmp' => []
+            }});
+
+} elsif ($cmd eq 'stats') {
+
+    my @connections;
+    my @labels;
+
+    my $time = $input->{'time'} || 900;
+    my $txt = read_netdata("/api/v1/data?chart=netfilter.conntrack_sockets&format=csv&before=0&after=-$time&options=abs,seconds");
+    if ($txt) {
+        my @lines = split("\r\n",$txt);
+        @labels = split(",",shift @lines);
+        foreach (@lines) {
+            my @values = map(int, split(",",$_));
+            push(@connections, \@values);
+        }
+    }
+    print encode_json({labels => \@labels, data => \@connections});
+
+} else {
+    error();
+}

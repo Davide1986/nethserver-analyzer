@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<head>
+    <title>Download List user configuration VPN </title>
+    <meta charset="utf-8">
+    <link href="../base1/cockpit.css" type="text/css" rel="stylesheet">
+    <script src="../base1/jquery.js"></script>
+    <script src="../base1/cockpit.js"></script>
+    <script src="vue.js"></script>
+    <style>
+	.bold-red {
+	  font-weight: bold;
+	  color: red;
+	}
+    </style>
+ </head>
+ <body>
+    <div class="container-fluid" id="demo-app">
+       <div class="toast-pf toast-pf-max-width toast-pf-top-right alert alert-success alert-dismissable" v-if="showLoadConnecions">
+          <button type="button" class="close" data-dismiss="alert" aria-hidden="true">
+          <span class="pficon pficon-close"></span>
+          </button>
+          <span class="pficon pficon-ok"></span>
+          Analyzer Network
+       </div>
+       <div class="alert alert-warning alert-dismissable mg-top-10" v-if="showError">
+          <span class="pficon pficon-warning-triangle-o"></span>
+          <strong>Avviso:</strong>
+          <span class="mg-left-5">
+          {{msgError}}, si rinvita a ricararicare la paggina. <br>
+          Se il problema persiste contattare l'amministratore.
+          </span>.
+       </div>
+       <h2>Analyzer Network</h2>
+       <div class="">
+          <!----><span>
+          Maggiori informazioni
+          <a target="_blank" href="https://partner.nethesis.it">Eroi Digitali</a>.
+          </span>
+       </div>
+       <hr>
+       <div class="form-horizontal">
+          <div class="form-group compact" >
+             <div class="col-sm-2 adjust-li">
+                <label for="statusFilter">Filtro stato connessione:</label>
+                <select id="statusFilter" v-model="selectedStatus">
+                    <option value="">Tutti</option>
+                    <option value="ESTABLISHED">ESTABLISHED</option>
+                    <option value="TIME_WAIT">TIME_WAIT</option>
+                    <option value="CLOSE">CLOSE</option>
+                </select>
+             </div>
+          </div>
+          <div class="vgt-global-search__input vgt-pull-left">
+                <label for="filter-input">Filtro IP:</label>
+                <input type="text" class="form-control" id="filter-input" v-model="filterText">
+             </div>  
+          </div>
+	  <br />
+	  <form role="form" class="search-pf has-button search">
+		<div class="">
+			<button type="button" class="btn btn-primary btn-lg mg-left-10 mr-2" @click="getConnecions()">Aggiorna</button>
+			&nbsp;&nbsp;&nbsp;
+			<button type="button" data-toggle="modal" data-target="#deleteConnectionsModal" class="btn btn-danger btn-lg mg-left-10 mr-2">Elimina tutte le connessioni</button>
+		</div>
+	  </form>
+          <br />
+          <div class="vgt-responsive">
+            <table class="table vgt2 ">
+              <thead>
+                <tr>
+                  <!----> <!---->
+                  <th class="vgt-left-align" style="min-width: auto; width: auto;">
+                    <span>Sorgente</span>
+                  </th>
+                  <th class="vgt-left-align" style="min-width: auto; width: auto;">
+                    <span>Destinazione</span>
+                  </th>
+                  <th class="vgt-left-align" style="min-width: auto; width: auto;">
+                    <span>Stato</span>
+                  </th>
+                  <th class="vgt-left-align" style="min-width: auto; width: auto;">
+                    <span>Protocollo</span>
+                  </th>
+                  <th class="vgt-left-align" style="min-width: auto; width: auto;">
+                    <span>Applicazione</span>
+                  </th>
+		<!--
+                  <th class="vgt-left-align" style="min-width: auto; width: auto;">
+                    <span>Destinazione Reply</span>
+                  </th>
+                  <th class="vgt-left-align" style="min-width: auto; width: auto;">
+                    <span>Sorgente Reply</span>
+                  </th>
+		-->
+                  <th class="vgt-left-align" style="min-width: auto; width: auto;">
+                    <span>Score Database1</span>
+                  </th>
+                  <th class="vgt-left-align" style="min-width: auto; width: auto;">
+                    <span>Score Database2</span>
+                  </th>
+                  <th class="vgt-left-align" style="min-width: auto; width: auto;">
+                    <span>Iptable</span>
+                  </th>
+                  <th class="vgt-left-align" style="min-width: auto; width: auto;">
+                    <span></span>
+                  </th>
+                </tr>
+                <!---->
+              </thead>
+              <tbody>
+                <!---->
+                        <tr v-for="(elm, index) in filteredConnections" :key="index">
+                            <!----> <!---->
+                            <td class="vgt-left-align">
+                              <span :class="{'bold-red': isPublicIP(elm.src)}"><span class="semi-bold"> {{ elm.src }}</span><span>: {{ elm.sport }}</span></span>
+                              <!----><!----><!----><!----><!----><!----><!----><!----><!----><!---->
+                            </td>
+                            <td class="vgt-left-align">
+                              <!----><span :class="{'bold-red': isPublicIP(elm.dst)}"><span class="semi-bold"> {{ elm.dst }}</span><span>: {{ elm.dport }}</span></span>
+                              <!----><!----><!----><!----><!----><!----><!----><!----><!---->
+                            </td>
+                            <td class="vgt-left-align">
+                              <!----><!---->
+                              <span>
+                                {{ elm.state }}
+                              </span>
+                              <!----><!----><!----><!----><!----><!----><!----><!---->
+                            </td>
+                            <td class="vgt-left-align">
+                              <!----><!----><!----><!----><!----><!---->
+                              <span>
+                                {{ elm.protocol }}
+                              </span>
+                              <!----><!----><!----><!---->
+                            </td>
+                            <td class="vgt-left-align">
+                              <!----><!----><!----><!----><!----><!----><!---->
+                              <span>
+                                  {{ elm.application }}
+                              </span>
+                              <!----><!----><!---->
+                            </td>
+			 <!--
+                            <td class="vgt-left-align">
+                              <span>   
+                                 <span class="semi-bold"> {{ elm.dst_reply }}</span><span>: {{ elm.dport_reply }}</span>
+                              </span>
+                            </td>
+                            <td class="vgt-left-align">
+                              <span>
+                                 <span class="semi-bold"> {{ elm.src_reply }}</span>
+                              </span>
+                            </td>
+			    -->
+                            <td class="vgt-left-align">
+                              <span>   
+                                 <span class="semi-bold"> xx </span><span>: xxx</span>
+                              </span>
+                            </td>
+                            <td class="vgt-left-align">
+                              <span>
+                                 <span class="semi-bold"> xxxx</span>
+                              </span>
+                            </td>
+                            <td class="vgt-left-align">
+                              <span>
+                                <button class="btn btn-warning">
+					<span class="fa fa-warning span-right-margin"></span>
+                                 Ins. Blacklist 
+                                </button>
+			      </span>
+                            </td>
+
+                            <td class="vgt-left-align">
+                              <!----><!----><!----><!----><!----><!----><!----><!----><!----><!---->
+                              <span>
+                                <button class="btn btn-danger" @click="deleteConnecion(elm.protocol, elm.dport, elm.sport, elm.src, elm.dst)">
+					<span class="fa fa-times span-right-margin"></span>
+                                  Disconnetti
+                                </button>
+			      </span>
+                            </td>
+                          </tr>
+                    </div>
+                    <!-- end div for -->
+
+
+                <!---->
+              </tbody> 
+              <!---->
+          </table>
+    </div>
+
+       </div>
+    </div>
+    <script>
+       var app = new Vue({
+           el: '#demo-app',
+           data: {
+               lstConnections : [], 
+               showError : false,
+               showLoadConnecions : false,
+               selectedStatus: '',
+               filterText: '',
+               groupConnections: false,
+               groupedConnections: [],
+               msgError : '',
+           },
+           mounted() {
+            this.getConnecions();        
+           },
+           computed: { 
+           filteredConnections() {
+                if (this.selectedStatus === '' && this.filterText === '') {
+                    return this.lstConnections;
+                } else {
+                 let connections = this.lstConnections;
+                  if (this.groupConnections) {
+                  
+                  }else{
+
+                    return this.lstConnections.filter(connection =>
+                        (this.selectedStatus === '' || connection.state === this.selectedStatus) &&
+                        (this.filterText === '' ||
+                            connection.src.includes(this.filterText) ||
+                            connection.dst.includes(this.filterText))
+                    );
+                  }
+
+                }
+            }
+	   },    
+           methods : {
+             isPublicIP(ip) {
+                // Rileva l'intervallo di indirizzi IP privati
+                const privateIPRanges = [
+                  { start: '10.0.0.0', end: '10.255.255.255' },
+                  { start: '172.16.0.0', end: '172.31.255.255' },
+                  { start: '192.168.0.0', end: '192.168.255.255' }
+                ];
+
+                // Converte l'indirizzo IP in un numero intero
+                const ipParts = ip.split('.').map(Number);
+                const ipAddress = (ipParts[0] << 24) + (ipParts[1] << 16) + (ipParts[2] << 8) + ipParts[3];
+
+                // Controlla se l'indirizzo IP è privato
+                for (const range of privateIPRanges) {
+                  const startParts = range.start.split('.').map(Number);
+                  const endParts = range.end.split('.').map(Number);
+                  const startIP = (startParts[0] << 24) + (startParts[1] << 16) + (startParts[2] << 8) + startParts[3];
+                  const endIP = (endParts[0] << 24) + (endParts[1] << 16) + (endParts[2] << 8) + endParts[3];
+
+                  if (ipAddress >= startIP && ipAddress <= endIP) {
+                    return false; // L'indirizzo IP è privato
+                  }
+                }
+
+                return true; // L'indirizzo IP è pubblico
+              },          
+            getConnecions : function () {
+                   console.log("start");
+                   var self = this;
+                   self.lstConnections = [];
+                   //echo '{"action":"conntrack","protocol":"tcp","state":"","limit":""}' | /usr/bin/sudo /usr/libexec/nethserver/api/nethserver-analyzer/connections/read | jq
+                   cockpit.spawn('/usr/libexec/nethserver/api/nethserver-analyzer/connections/read')
+                       .input('{"action":"conntrack","protocol":"tcp","state":"","limit":""}')
+                       .done(function(content) {
+       
+                           console.log("success");
+                           //console.log(content);
+                           var success = JSON.parse(content);
+                           //console.log(success.connections);
+
+                           for (i in success.connections) {
+                              //console.log(success.connections[i]);
+                              //alert(success.users[i].name);
+                              //self.lstConnections.push(success.connections[i]);
+			                        var data = {
+                                "src" : success.connections[i].src,
+                                "sport" : success.connections[i].sport,
+                                "dst" : success.connections[i].dst,
+                                "dport" : success.connections[i].dport,
+	                        "state" : success.connections[i].state,
+	                        "protocol" : success.connections[i].protocol,
+			        "application" : success.connections[i].ndpi,
+                                "dst_reply" : success.connections[i].dst_reply,
+                                "dport_reply": success.connections[i].dport_reply,
+                                "src_reply" : success.connections[i].src_reply
+                              }
+			      console.log(data);
+                              self.lstConnections.push(data);
+                          }
+                                      
+                          //apertura pop-up messaggio di sucesso
+                          self.showLoadConnecions = true;
+                          //timer per la chiusura del pop-up
+                          setTimeout (function () {
+                             self.showLoadConnecions = false;
+                          },5000);
+
+                                
+                       })
+                       .fail(function(ex) {
+                           console.log("error fail");
+                           self.showError = true;
+                           self.msgError = ex;
+                           console.log(ex);
+                       });
+       
+               },//end
+	deleteConnecion : function(protocol, dport, sport, src, dst) {
+                   console.log("start");
+                   var self = this;
+
+                   console.log("----- ");
+		   console.log("protocol " + protocol);		
+                   console.log("dport " + dport);
+                   console.log("sport " + sport);
+                   console.log("src " + src);
+                   console.log("dst " + dst);
+                   console.log("----- ");
+
+      		         //echo '{"action":"connection","protocol":"tcp","dport":"9090","sport":"3134","src":"192.168.1.142","dst":"192.168.1.252"}' | /usr/bin/setsid /usr/bin/sudo /usr/libexec/nethserver/api/nethserver-firewall-base/connections/delete | jq
+                   cockpit.spawn('/usr/libexec/nethserver/api/nethserver-analyzer/connections/delete')
+                       .input('{"action":"connection","protocol":"' + protocol + '","dport":"' + dport + '","sport":"' + sport + '","src":"' + src + '","dst":"' + dst + '"}')
+                       .done(function(content) {
+       
+                           console.log("success");
+                           //console.log(content);
+                           //var success = JSON.parse(content);
+                           //console.log(success);
+
+   			   // Aggiorna la lista delle connessioni dopo l'eliminazione
+	                   self.getConnecions();
+			 
+                          //apertura pop-up messaggio di sucesso
+                          self.showLoadConnecions = true;
+                          //timer per la chiusura del pop-up
+                          setTimeout (function () {
+                             self.showLoadConnecions = false;
+                          },5000);
+
+                                
+                       })
+                       .fail(function(ex) {
+                           console.log("error fail");
+   			   // Aggiorna la lista delle connessioni dopo l'eliminazione
+	                   self.getConnecions();
+
+                           self.showError = true;
+                           self.msgError = ex;
+                           console.log(ex);
+                       });
+       
+               },                 
+           }
+       });
+       
+    </script>
+ </body>
+ </html>
