@@ -16,3 +16,7 @@ Filtro in base llo stato della connessione
 
 ![image](https://github.com/Davide1986/nethserver-analyzer/assets/6768906/923adc13-e96c-4539-a50e-fa142395d82f)
 
+Filtro in base all'indirizzo IP 
+
+![image](https://github.com/Davide1986/nethserver-analyzer/assets/6768906/12935ea9-238a-4324-8f24-1f74ad1fc045)
+
